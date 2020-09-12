@@ -1,0 +1,46 @@
+name: Build release
+
+on:
+  push:
+    paths:
+      - ".github/workflows/release.yml"
+  create:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: windows-2016
+    env:
+      target-name: VRChatRPC
+      plantform-des: win
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v1
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1.0.1
+
+      - name: Get the version
+        shell: bash
+        id: get-version
+        run: echo ::set-output name=version::${GITHUB_REF##*/}
+
+      - name: Build windows
+        id: build
+        env:
+          publish_name: ${{ env.target-name }}-${{ env.plantform-des }}-${{ steps.get-version.outputs.version }}
+        run: |
+          MSBuild.exe . /p:Configuration=Release
+          Compress-Archive -Path x64/Release/VRChatRPC.dll ${{ env.publish_name }}.zip
+          echo "::set-output name=package-name::${{ env.publish_name }}"
+
+      - name: Upload Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ steps.build.outputs.package-name }}.zip
+          asset_name: ${{ steps.build.outputs.package-name }}.zip
+          tag: ${{ github.ref }}
+          overwrite: true
